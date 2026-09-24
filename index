@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>醫療眼力大考驗｜Find the Hidden Key</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=Noto+Sans+TC:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        hemo: {
+                            red: '#C30D23',      /* 英禾美標準色A 重生紅 */
+                            redDark: '#990818',
+                            redLight: '#FBE8EA',
+                            grey: '#BFC0C0',     /* 英禾美標準色B 專注灰 */
+                            greyDark: '#4A5568',
+                            slate: '#1E293B',
+                            gold: '#D97706'
+                        },
+                        line: {
+                            green: '#06C755',
+                            greenDark: '#05B04B'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['"Noto Sans TC"', 'Inter', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+            font-family: 'Noto Sans TC', sans-serif;
+            background: radial-gradient(circle at 50% 25%, #ffffff 0%, #f4f6fa 50%, #e2e8f0 100%);
+            min-height: 100vh;
+        }
+
+        /* 遊戲網格觸控優化 */
+        .board-grid {
+            touch-action: none;
+            display: grid;
+            gap: 4px;
+        }
+
+        .grid-cell {
+            aspect-ratio: 1 / 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            border-radius: 8px;
+            transition: all 0.15s ease;
+            box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.8), 0 2px 4px rgba(0, 0, 0, 0.05);
+            font-family: 'Inter', 'Noto Sans TC', monospace;
+        }
+
+        /* 選取中與高亮狀態 */
+        .cell-selected {
+            background-color: #C30D23 !important;
+            color: #ffffff !important;
+            transform: scale(0.96);
+            box-shadow: 0 0 12px rgba(195, 13, 35, 0.6) !important;
+        }
+
+        .cell-first-tap {
+            background-color: #FEF2F2 !important;
+            color: #C30D23 !important;
+            border: 2px solid #C30D23 !important;
+            animation: pulse-ring 1s infinite;
+        }
+
+        .cell-hint {
+            animation: hint-flash 1.2s infinite;
+        }
+
+        @keyframes pulse-ring {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.08); box-shadow: 0 0 10px rgba(195, 13, 35, 0.4); }
+        }
+
+        @keyframes hint-flash {
+            0%, 100% { background-color: #F8FAFC; }
+            50% { background-color: #FEF08A; color: #854D0E; }
+        }
+
+        /* 錯誤震動動畫 */
+        @keyframes shake-wrong {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-6px); }
+            40%, 80% { transform: translateX(6px); }
+        }
+        .shake {
+            animation: shake-wrong 0.4s ease-in-out;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-between min-h-screen text-slate-800 p-3 sm:p-5">
+
+    <div class="w-full max-w-md mx-auto flex flex-col items-center justify-between flex-1 h-full">
+
+        <!-- 頂部品牌 Bar -->
+        <header class="w-full flex items-center justify-between py-2 border-b border-slate-200/80 mb-2">
+            <div class="flex items-center gap-2">
+                <div class="w-7 h-7 rounded-full bg-hemo-red flex items-center justify-center text-white text-xs font-black shadow-md">
+                    <i class="fa-solid fa-asterisk"></i>
+                </div>
+                <div class="flex flex-col">
+                    <span class="text-sm font-black tracking-wider text-hemo-red leading-tight">英禾美生醫</span>
+                    <span class="text-[9px] font-semibold text-slate-400 tracking-widest leading-none">HEMOSCIEN</span>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 text-xs font-bold text-slate-600">
+                <span class="px-2.5 py-1 bg-white/80 rounded-full border border-slate-200 shadow-sm flex items-center gap-1.5">
+                    <i class="fa-solid fa-hospital text-hemo-red"></i> 醫學會展場限定
+                </span>
+                <button id="soundToggleBtn" class="w-8 h-8 rounded-full bg-white border border-slate-200 shadow-sm flex items-center justify-center text-slate-500 hover:text-hemo-red transition">
+                    <i id="soundIcon" class="fa-solid fa-volume-high"></i>
+                </button>
+            </div>
+        </header>
+
+        <section id="startScreen" class="w-full flex-1 flex flex-col items-center justify-center text-center px-2 py-4">
+            
+            <!-- 視覺光環與徽章 -->
+            <div class="relative mb-4">
+                <div class="w-24 h-24 sm:w-28 sm:h-28 rounded-3xl bg-gradient-to-tr from-hemo-red to-rose-500 shadow-xl shadow-hemo-red/25 flex items-center justify-center text-white text-4xl sm:text-5xl mx-auto rotate-3 hover:rotate-0 transition duration-300">
+                    <i class="fa-solid fa-magnifying-glass-location"></i>
+                </div>
+                <span class="absolute -bottom-2.5 -right-2 bg-slate-900 text-white text-[11px] font-extrabold px-2.5 py-1 rounded-full border-2 border-white shadow">
+                    30s LIMIT
+                </span>
+            </div>
+
+            <!-- 主副標題 -->
+            <div class="inline-block px-3 py-1 bg-hemo-redLight text-hemo-red rounded-full text-xs font-bold tracking-wider mb-2">
+                Hemoscien 👆 Touch & Find
+            </div>
+            <h1 class="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight mb-2">
+                醫療眼力大考驗<br>
+                <span class="text-hemo-red">Find the Hidden Key</span>
+            </h1>
+            <p class="text-xs sm:text-sm text-slate-500 font-medium max-w-xs mb-6 leading-relaxed">
+                你的臨床觀察力，能找到藏起來的關鍵字嗎？在字母海中找出隱藏目標，過關即可獲得展場限定好禮！
+            </p>
+
+            <!-- 任務單詞預覽卡 -->
+            <div class="w-full bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm mb-6 text-left">
+                <div class="text-[11px] font-bold text-slate-400 mb-2 flex items-center justify-between">
+                    <span>隨機挑選關鍵字</span>
+                    <span class="text-hemo-red">5 題抽 1</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-xs font-bold">
+                    <div class="p-2 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-hemo-red"></span> HEMOSCIEN
+                    </div>
+                    <div class="p-2 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-hemo-red"></span> INFOMED
+                    </div>
+                    <div class="p-2 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-hemo-red"></span> HF440
+                    </div>
+                    <div class="p-2 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-hemo-red"></span> DIMI
+                    </div>
+                    <div class="p-2 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-2 col-span-2 sm:col-span-1">
+                        <span class="w-2 h-2 rounded-full bg-hemo-red"></span> CYTOSORB
+                    </div>
+                </div>
+                <div class="mt-3 text-[11px] text-slate-500 bg-amber-50 rounded-lg p-2 border border-amber-200/60 flex items-center gap-2">
+                    <i class="fa-solid fa-hand-pointer text-amber-600"></i>
+                    <span>支援「<b>點擊頭尾字母</b>」或「<b>直接滑動拖曳</b>」選字！</span>
+                </div>
+            </div>
+
+            <!-- 開始按鈕 -->
+            <button id="startGameBtn" class="w-full py-3.5 bg-gradient-to-r from-hemo-red to-red-600 hover:from-hemo-redDark hover:to-hemo-red text-white font-extrabold text-base rounded-2xl shadow-lg shadow-hemo-red/30 active:scale-[0.98] transition flex items-center justify-center gap-2">
+                <span>立即開始挑戰</span>
+                <i class="fa-solid fa-arrow-right"></i>
+            </button>
+        </section>
+
+        <section id="gameScreen" class="w-full flex-1 flex-col justify-between hidden">
+
+            <!-- 任務目標與倒數狀態欄 -->
+            <div class="w-full bg-white rounded-2xl p-3 border border-slate-200/80 shadow-sm mb-3">
+                <div class="flex items-center justify-between mb-2">
+                    <!-- 題目提示 -->
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs font-bold text-slate-500">🔎 請找出：</span>
+                        <span id="targetWordBadge" class="text-lg font-black tracking-widest text-hemo-red px-2.5 py-0.5 bg-red-50 rounded-lg border border-red-200">
+                            HF440
+                        </span>
+                    </div>
+
+                    <!-- 倒數計時器 -->
+                    <div class="flex items-center gap-1.5 text-xs font-extrabold">
+                        <span class="text-slate-400">⏱️ 剩餘時間：</span>
+                        <div class="flex items-center gap-1 text-slate-800">
+                            <span id="timerText" class="text-lg font-black text-slate-800 w-7 text-center">30</span>
+                            <span class="text-[11px] font-bold">秒</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 倒數進度條 -->
+                <div class="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                    <div id="timerBar" class="bg-hemo-red h-full w-full transition-all duration-1000 ease-linear rounded-full"></div>
+                </div>
+            </div>
+
+            <!-- 互動指引與提示 -->
+            <div class="w-full flex items-center justify-between text-[11px] font-bold text-slate-500 px-1 mb-2">
+                <span id="interactionGuide" class="flex items-center gap-1 text-slate-600">
+                    <i class="fa-regular fa-hand-point-up text-hemo-red"></i> 請點首末字或滑動選取
+                </span>
+                <button id="hintBtn" class="text-xs font-bold text-slate-500 hover:text-hemo-red flex items-center gap-1 bg-white px-2 py-0.5 rounded-full border border-slate-200 shadow-2xs">
+                    <i class="fa-regular fa-lightbulb text-amber-500"></i> 提示
+                </button>
+            </div>
+
+            <!-- 字母矩陣舞台 (10x10) -->
+            <div class="w-full flex justify-center items-center my-auto">
+                <div id="boardContainer" class="w-full max-w-[370px] p-2 bg-white rounded-2xl border-2 border-slate-200/90 shadow-md">
+                    <div id="gameBoard" class="board-grid select-none" style="grid-template-columns: repeat(10, minmax(0, 1fr));">
+                        <!-- 由 JavaScript 動態生成 100 個格子 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 當前選擇字母顯示預覽與重置 -->
+            <div class="w-full flex items-center justify-between mt-3 px-1">
+                <div class="flex items-center gap-2">
+                    <span class="text-[11px] font-bold text-slate-400">當前選取:</span>
+                    <span id="currentSelection" class="text-xs font-mono font-extrabold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md min-w-[70px] text-center tracking-wider">
+                        --
+                    </span>
+                </div>
+                <button id="clearSelectionBtn" class="text-[11px] font-bold text-slate-400 hover:text-slate-600 underline">
+                    取消選取
+                </button>
+            </div>
+        </section>
+
+        <div id="successModal" class="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
+            <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-slate-100 text-center transform scale-95 transition-all duration-300 max-h-[90vh] overflow-y-auto">
+                
+                <!-- 慶祝圖示 -->
+                <div class="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 text-3xl flex items-center justify-center mx-auto mb-2 shadow-inner">
+                    <i class="fa-solid fa-trophy"></i>
+                </div>
+
+                <span class="inline-block px-3 py-0.5 bg-emerald-100 text-emerald-800 text-xs font-extrabold rounded-full mb-1">
+                    PERFECT!
+                </span>
+                <h2 class="text-2xl font-black text-slate-900 mb-1">🎉 挑戰成功！</h2>
+                <p class="text-xs text-slate-500 font-medium mb-3">
+                    卓越的臨床洞察力！成功找到關鍵字：<span id="winWordText" class="font-extrabold text-hemo-red font-mono"></span>
+                </p>
+
+                <!-- 成績報告卡 -->
+                <div class="bg-slate-50 rounded-2xl p-3 border border-slate-100 mb-3 text-left text-xs space-y-1.5">
+                    <div class="flex justify-between items-center text-slate-600">
+                        <span>觀察敏銳度評定：</span>
+                        <span class="font-black text-amber-500">★★★★★ 特優</span>
+                    </div>
+                    <div class="flex justify-between items-center text-slate-600">
+                        <span>耗費用時：</span>
+                        <span id="winTimeUsed" class="font-bold text-slate-800">12 秒</span>
+                    </div>
+                    <div class="pt-1.5 border-t border-slate-200/70 text-[11px] text-slate-500" id="wordIntroText">
+                        <!-- 關鍵字醫療產品介紹 -->
+                    </div>
+                </div>
+
+                <!-- 現場獎勵兌換卡 -->
+                <div class="bg-gradient-to-r from-hemo-redLight to-rose-50 rounded-2xl p-3 border border-red-200/70 text-left mb-4">
+                    <div class="flex items-center gap-2 text-hemo-red font-extrabold text-xs mb-1">
+                        <i class="fa-solid fa-gift"></i>
+                        <span>現場限定兌換資格</span>
+                    </div>
+                    <p class="text-[11px] text-slate-600 leading-snug">
+                        請點擊下方按鈕加入官方 LINE@，即可出示兌換<b>「現場轉扭蛋機會 1 次」</b>！
+                    </p>
+                    <div class="mt-2 text-center bg-white py-1 px-2 rounded-lg border border-red-200/50 text-[10px] text-slate-400 font-mono tracking-widest">
+                        AUTH CODE: <span id="authCode">HEMO-2026-WIN</span>
+                    </div>
+                </div>
+
+                <!-- 動作按鈕：加入官方 LINE@ 導流按鈕 -->
+                <div class="space-y-2">
+                    <a href="https://lihi1.me/AMTVl" target="_blank" rel="noopener noreferrer" class="w-full py-3.5 bg-line-green hover:bg-line-greenDark text-white font-black text-sm rounded-xl shadow-lg shadow-emerald-500/25 transition flex items-center justify-center gap-2 active:scale-[0.98]">
+                        <i class="fa-brands fa-line text-lg"></i>
+                        <span>加入官方 LINE@ 領取扭蛋券</span>
+                    </a>
+                    <button id="playAgainBtn" class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition">
+                        再玩一局（挑戰其他題目）
+                    </button>
+                    <button id="backHomeBtn" class="w-full py-1.5 text-slate-400 hover:text-slate-600 font-medium text-[11px] transition">
+                        返回首頁
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="failModal" class="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
+            <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-slate-100 text-center">
+                <div class="w-16 h-16 rounded-full bg-red-50 text-hemo-red text-3xl flex items-center justify-center mx-auto mb-3">
+                    <i class="fa-regular fa-clock"></i>
+                </div>
+                <h3 class="text-xl font-black text-slate-900 mb-1">時間到！挑戰未完成</h3>
+                <p class="text-xs text-slate-500 font-medium mb-4">
+                    目標關鍵字藏在比較刁鑽的角度，深呼吸再來一次！
+                </p>
+
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-100 mb-5 text-xs text-slate-600">
+                    目標關鍵字是：<span id="failWordText" class="font-extrabold text-hemo-red font-mono"></span><br>
+                    <span class="text-[11px] text-slate-400">已為您在盤面上以亮黃色標記正確位置！</span>
+                </div>
+
+                <div class="flex gap-2">
+                    <button id="retryBtn" class="flex-1 py-3 bg-hemo-red hover:bg-hemo-redDark text-white font-bold text-xs rounded-xl shadow-md transition">
+                        立即重試
+                    </button>
+                    <button id="inspectBoardBtn" class="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition">
+                        查看解答
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 頁尾版權 -->
+        <footer class="w-full text-center py-2 text-[10px] text-slate-400 font-medium">
+            英禾美生醫股份有限公司 Hemoscien Corporation · 專業血液淨化與急重症守護
+        </footer>
+    </div>
+
+    <script>
+        // Web Audio API 擬真零依賴音效
+        class SoundEffects {
+            constructor() {
+                this.enabled = true;
+                this.ctx = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playTap() {
+                if (!this.enabled) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(440, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(880, this.ctx.currentTime + 0.08);
+                gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.08);
+            }
+
+            playSuccess() {
+                if (!this.enabled) return;
+                this.init();
+                const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+                notes.forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, this.ctx.currentTime + idx * 0.1);
+                    gain.gain.setValueAtTime(0.18, this.ctx.currentTime + idx * 0.1);
+                    gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + idx * 0.1 + 0.35);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(this.ctx.currentTime + idx * 0.1);
+                    osc.stop(this.ctx.currentTime + idx * 0.1 + 0.35);
+                });
+            }
+
+            playError() {
+                if (!this.enabled) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(220, this.ctx.currentTime);
+                osc.frequency.setValueAtTime(160, this.ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.25);
+            }
+        }
+
+        const sound = new SoundEffects();
+
+        const WORD_POOL = ['HEMOSCIEN', 'INFOMED', 'HF440', 'DIMI', 'CYTOSORB'];
+
+        const WORD_DESCRIPTIONS = {
+            'HEMOSCIEN': '<b>英禾美生醫 (Hemoscien)</b>：深耕急重症照護與血液淨化領域，秉持「重生紅」的生命力與「專注灰」的嚴謹專業。',
+            'INFOMED': '<b>瑞士原廠 Infomed</b>：享譽全球的高階血液淨化設備研發製造領導者，提供精密穩定的臨床治療平台。',
+            'HF440': '<b>HF440 血液淨化平台</b>：支援全方位治療模式（CKRT、DFPP、雙重抗凝策略及獨家 ECMO 串聯模式）。',
+            'DIMI': '<b>DIMI 透析系統</b>：創新精巧的血液淨化設備，提供病患更人性化、更高品質的治療體驗。',
+            'CYTOSORB': '<b>CytoSorb 血液吸附器</b>：專為移除體內過量細胞激素與發炎物質設計，協助穩定重症患者血行動力與免疫平衡。'
+        };
+
+        const GRID_SIZE = 10;
+        const GAME_DURATION = 30; // 30秒
+
+        let gameState = {
+            targetWord: '',
+            grid: [],
+            wordPlacement: null,
+            timer: GAME_DURATION,
+            timerInterval: null,
+            firstSelectedCell: null,
+            currentPath: [],
+            isDragging: false,
+            isGameOver: false
+        };
+
+        function createEmptyGrid(size) {
+            return Array.from({ length: size }, () => Array(size).fill(''));
+        }
+
+        // 所有 8 個方向 (水平左至右、右至左、垂直上至下、下至上、4種對角線)
+        const DIRECTIONS = [
+            { r: 0, c: 1, name: '水平左至右' },
+            { r: 0, c: -1, name: '水平右至左' },
+            { r: 1, c: 0, name: '垂直上至下' },
+            { r: -1, c: 0, name: '垂直下至上' },
+            { r: 1, c: 1, name: '斜向左上至右下' },
+            { r: 1, c: -1, name: '斜向右上至左下' },
+            { r: -1, c: 1, name: '斜向左下至右上' },
+            { r: -1, c: -1, name: '斜向右下至左上' }
+        ];
+
+        function canPlaceWord(grid, word, startR, startC, dir) {
+            const endR = startR + dir.r * (word.length - 1);
+            const endC = startC + dir.c * (word.length - 1);
+
+            if (endR < 0 || endR >= GRID_SIZE || endC < 0 || endC >= GRID_SIZE) {
+                return false;
+            }
+
+            for (let i = 0; i < word.length; i++) {
+                const r = startR + dir.r * i;
+                const c = startC + dir.c * i;
+                if (grid[r][c] !== '' && grid[r][c] !== word[i]) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function placeWordInGrid(grid, word) {
+            // 嘗試隨機方向與起點
+            const shuffledDirs = [...DIRECTIONS].sort(() => Math.random() - 0.5);
+            for (const dir of shuffledDirs) {
+                // 建立所有可用起點
+                const candidates = [];
+                for (let r = 0; r < GRID_SIZE; r++) {
+                    for (let c = 0; c < GRID_SIZE; c++) {
+                        if (canPlaceWord(grid, word, r, c, dir)) {
+                            candidates.push({ r, c });
+                        }
+                    }
+                }
+                if (candidates.length > 0) {
+                    const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+                    const path = [];
+                    for (let i = 0; i < word.length; i++) {
+                        const curR = chosen.r + dir.r * i;
+                        const curC = chosen.c + dir.c * i;
+                        grid[curR][curC] = word[i];
+                        path.push({ r: curR, c: curC });
+                    }
+                    return { word, path, dir };
+                }
+            }
+            return null;
+        }
+
+        function generateBoard(targetWord) {
+            let success = false;
+            let finalGrid = [];
+            let targetPlacement = null;
+            let attempts = 0;
+
+            // 高頻醫療與展會英文字母干擾池
+            const MEDICAL_LETTERS = "ACDEFHILMNOPRSTU40";
+
+            while (!success && attempts < 50) {
+                attempts++;
+                const tempGrid = createEmptyGrid(GRID_SIZE);
+
+                // 1. 優先放置目標關鍵字
+                const targetResult = placeWordInGrid(tempGrid, targetWord);
+                if (!targetResult) continue;
+
+                // 2. 隨機安插題庫其他單字增加探索真實性
+                const otherWords = WORD_POOL.filter(w => w !== targetWord);
+                for (const w of otherWords) {
+                    placeWordInGrid(tempGrid, w);
+                }
+
+                // 3. 填滿空白格子
+                for (let r = 0; r < GRID_SIZE; r++) {
+                    for (let c = 0; c < GRID_SIZE; c++) {
+                        if (tempGrid[r][c] === '') {
+                            tempGrid[r][c] = MEDICAL_LETTERS[Math.floor(Math.random() * MEDICAL_LETTERS.length)];
+                        }
+                    }
+                }
+
+                finalGrid = tempGrid;
+                targetPlacement = targetResult;
+                success = true;
+            }
+
+            return { grid: finalGrid, placement: targetPlacement };
+        }
+
+        const gameBoardEl = document.getElementById('gameBoard');
+
+        function renderBoardDOM(grid) {
+            gameBoardEl.innerHTML = '';
+            for (let r = 0; r < GRID_SIZE; r++) {
+                for (let c = 0; c < GRID_SIZE; c++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'grid-cell bg-slate-50 border border-slate-200 text-slate-800 text-sm sm:text-base cursor-pointer';
+                    cell.textContent = grid[r][c];
+                    cell.dataset.r = r;
+                    cell.dataset.c = c;
+                    gameBoardEl.appendChild(cell);
+                }
+            }
+        }
+
+        function getCellElement(r, c) {
+            return gameBoardEl.querySelector(`[data-r="${r}"][data-c="${c}"]`);
+        }
+
+        function getCellFromPoint(clientX, clientY) {
+            const el = document.elementFromPoint(clientX, clientY);
+            if (el && el.classList.contains('grid-cell')) {
+                return {
+                    r: parseInt(el.dataset.r, 10),
+                    c: parseInt(el.dataset.c, 10),
+                    element: el
+                };
+            }
+            return null;
+        }
+
+        // 計算起點到終點之間的直角或45度對角線所有格子
+        function calculateStraightLine(startR, startC, endR, endC) {
+            const dr = endR - startR;
+            const dc = endC - startC;
+            const distR = Math.abs(dr);
+            const distC = Math.abs(dc);
+
+            // 必須是：水平、垂直、或嚴格對角線 (斜率 1 或 -1)
+            const isHorizontal = distR === 0 && distC > 0;
+            const isVertical = distC === 0 && distR > 0;
+            const isDiagonal = distR === distC && distR > 0;
+
+            if (!isHorizontal && !isVertical && !isDiagonal) {
+                return null;
+            }
+
+            const stepR = dr === 0 ? 0 : dr / distR;
+            const stepC = dc === 0 ? 0 : dc / distC;
+            const steps = Math.max(distR, distC);
+
+            const path = [];
+            for (let i = 0; i <= steps; i++) {
+                path.push({
+                    r: startR + stepR * i,
+                    c: startC + stepC * i
+                });
+            }
+            return path;
+        }
+
+        function highlightPath(path) {
+            // 清除之前的選取
+            gameBoardEl.querySelectorAll('.grid-cell').forEach(cell => {
+                cell.classList.remove('cell-selected');
+            });
+
+            if (!path || path.length === 0) {
+                document.getElementById('currentSelection').textContent = '--';
+                return;
+            }
+
+            let wordSelected = '';
+            path.forEach(pt => {
+                const el = getCellElement(pt.r, pt.c);
+                if (el) {
+                    el.classList.add('cell-selected');
+                    wordSelected += el.textContent;
+                }
+            });
+
+            document.getElementById('currentSelection').textContent = wordSelected;
+        }
+
+        function checkSelection(path) {
+            if (!path || path.length === 0) return false;
+
+            let forward = '';
+            path.forEach(pt => {
+                forward += gameState.grid[pt.r][pt.c];
+            });
+            const backward = forward.split('').reverse().join('');
+
+            if (forward === gameState.targetWord || backward === gameState.targetWord) {
+                handleSuccess();
+                return true;
+            } else {
+                // 錯誤震動回饋
+                sound.playError();
+                gameBoardEl.classList.add('shake');
+                setTimeout(() => gameBoardEl.classList.remove('shake'), 450);
+                clearSelection();
+                return false;
+            }
+        }
+
+        function clearSelection() {
+            if (gameState.firstSelectedCell) {
+                const el = getCellElement(gameState.firstSelectedCell.r, gameState.firstSelectedCell.c);
+                if (el) el.classList.remove('cell-first-tap');
+            }
+            gameState.firstSelectedCell = null;
+            gameState.currentPath = [];
+            highlightPath([]);
+        }
+
+        function setupInteraction() {
+            // 1. 拖曳選取 (Pointer Drag)
+            gameBoardEl.addEventListener('pointerdown', (e) => {
+                if (gameState.isGameOver) return;
+                sound.init();
+
+                const cellData = getCellFromPoint(e.clientX, e.clientY);
+                if (!cellData) return;
+
+                gameState.isDragging = true;
+                gameState.dragStart = { r: cellData.r, c: cellData.c };
+                gameState.currentPath = [{ r: cellData.r, c: cellData.c }];
+                highlightPath(gameState.currentPath);
+                sound.playTap();
+            });
+
+            window.addEventListener('pointermove', (e) => {
+                if (!gameState.isDragging || gameState.isGameOver) return;
+                const cellData = getCellFromPoint(e.clientX, e.clientY);
+                if (!cellData) return;
+
+                const path = calculateStraightLine(
+                    gameState.dragStart.r,
+                    gameState.dragStart.c,
+                    cellData.r,
+                    cellData.c
+                );
+
+                if (path) {
+                    gameState.currentPath = path;
+                    highlightPath(path);
+                }
+            });
+
+            window.addEventListener('pointerup', () => {
+                if (!gameState.isDragging) return;
+                gameState.isDragging = false;
+
+                // 若拖曳長度大於 1，直接判定
+                if (gameState.currentPath.length > 1) {
+                    checkSelection(gameState.currentPath);
+                } else if (gameState.currentPath.length === 1) {
+                    // 若只點擊了單一格子，進入「兩段式點擊」模式 (Tap First -> Tap Last)
+                    handleTapSelection(gameState.currentPath[0]);
+                }
+            });
+
+            // 2. 兩段式點擊模式 (Click First -> Click Last)
+            function handleTapSelection(pt) {
+                if (!gameState.firstSelectedCell) {
+                    // 第一次點擊：標記起點
+                    gameState.firstSelectedCell = pt;
+                    const el = getCellElement(pt.r, pt.c);
+                    el.classList.add('cell-first-tap');
+                    document.getElementById('currentSelection').textContent = el.textContent;
+                    document.getElementById('interactionGuide').innerHTML = `
+                        <span class="text-hemo-red font-extrabold animate-pulse">
+                            <i class="fa-solid fa-bullseye"></i> 起點已鎖定，請點擊終點字母！
+                        </span>
+                    `;
+                } else {
+                    // 第二次點擊：計算直角連線
+                    const start = gameState.firstSelectedCell;
+                    const end = pt;
+
+                    // 取消首字特殊外框
+                    const startEl = getCellElement(start.r, start.c);
+                    if (startEl) startEl.classList.remove('cell-first-tap');
+
+                    if (start.r === end.r && start.c === end.c) {
+                        // 點擊同一格：取消
+                        clearSelection();
+                        document.getElementById('interactionGuide').innerHTML = `<i class="fa-regular fa-hand-point-up text-hemo-red"></i> 請點首末字或滑動選取`;
+                        return;
+                    }
+
+                    const path = calculateStraightLine(start.r, start.c, end.r, end.c);
+                    if (path) {
+                        highlightPath(path);
+                        checkSelection(path);
+                    } else {
+                        sound.playError();
+                        clearSelection();
+                    }
+                    document.getElementById('interactionGuide').innerHTML = `<i class="fa-regular fa-hand-point-up text-hemo-red"></i> 請點首末字或滑動選取`;
+                }
+            }
+        }
+
+        function startTimer() {
+            clearInterval(gameState.timerInterval);
+            gameState.timer = GAME_DURATION;
+            updateTimerDisplay();
+
+            gameState.timerInterval = setInterval(() => {
+                if (gameState.isGameOver) return;
+                gameState.timer--;
+                updateTimerDisplay();
+
+                if (gameState.timer <= 0) {
+                    clearInterval(gameState.timerInterval);
+                    handleTimeout();
+                }
+            }, 1000);
+        }
+
+        function updateTimerDisplay() {
+            const timerText = document.getElementById('timerText');
+            const timerBar = document.getElementById('timerBar');
+
+            timerText.textContent = gameState.timer;
+            const pct = (gameState.timer / GAME_DURATION) * 100;
+            timerBar.style.width = `${pct}%`;
+
+            if (gameState.timer <= 10) {
+                timerText.classList.add('text-hemo-red', 'animate-pulse');
+                timerBar.classList.remove('bg-hemo-red');
+                timerBar.classList.add('bg-red-600');
+            } else {
+                timerText.classList.remove('text-hemo-red', 'animate-pulse');
+                timerBar.classList.add('bg-hemo-red');
+                timerBar.classList.remove('bg-red-600');
+            }
+        }
+
+        function handleSuccess() {
+            gameState.isGameOver = true;
+            clearInterval(gameState.timerInterval);
+            sound.playSuccess();
+
+            // 五彩紙花特效
+            confetti({
+                particleCount: 80,
+                spread: 70,
+                origin: { y: 0.6 },
+                colors: ['#C30D23', '#BFC0C0', '#D97706', '#ffffff']
+            });
+
+            // 準備彈窗資訊
+            const timeUsed = GAME_DURATION - gameState.timer;
+            document.getElementById('winWordText').textContent = gameState.targetWord;
+            document.getElementById('winTimeUsed').textContent = `${timeUsed} 秒 (剩餘 ${gameState.timer} 秒)`;
+            document.getElementById('wordIntroText').innerHTML = WORD_DESCRIPTIONS[gameState.targetWord] || '';
+            document.getElementById('authCode').textContent = `HEMO-${Math.floor(1000 + Math.random() * 9000)}-WIN`;
+
+            setTimeout(() => {
+                document.getElementById('successModal').classList.remove('hidden');
+            }, 300);
+        }
+
+        function handleTimeout() {
+            gameState.isGameOver = true;
+            sound.playError();
+            document.getElementById('failWordText').textContent = gameState.targetWord;
+            document.getElementById('failModal').classList.remove('hidden');
+        }
+
+        function showHint() {
+            if (gameState.isGameOver || !gameState.wordPlacement) return;
+            sound.playTap();
+
+            // 將答案的第一個字母閃爍標記
+            const firstPt = gameState.wordPlacement.path[0];
+            const el = getCellElement(firstPt.r, firstPt.c);
+            if (el) {
+                el.classList.add('cell-hint');
+                setTimeout(() => el.classList.remove('cell-hint'), 2500);
+            }
+        }
+
+        function revealAnswerOnBoard() {
+            document.getElementById('failModal').classList.add('hidden');
+            if (!gameState.wordPlacement) return;
+
+            gameState.wordPlacement.path.forEach(pt => {
+                const el = getCellElement(pt.r, pt.c);
+                if (el) {
+                    el.classList.add('bg-amber-300', 'text-amber-950', 'font-black');
+                }
+            });
+        }
+
+        function startNewGame() {
+            gameState.isGameOver = false;
+            clearSelection();
+
+            // 1. 隨機選題
+            const randomTarget = WORD_POOL[Math.floor(Math.random() * WORD_POOL.length)];
+            gameState.targetWord = randomTarget;
+            document.getElementById('targetWordBadge').textContent = randomTarget;
+
+            // 2. 生成 10x10 盤面
+            const generated = generateBoard(randomTarget);
+            gameState.grid = generated.grid;
+            gameState.wordPlacement = generated.placement;
+
+            // 3. 渲染盤面 DOM
+            renderBoardDOM(gameState.grid);
+
+            // 4. 切換畫面
+            document.getElementById('startScreen').classList.add('hidden');
+            document.getElementById('successModal').classList.add('hidden');
+            document.getElementById('failModal').classList.add('hidden');
+            document.getElementById('gameScreen').classList.remove('hidden');
+            document.getElementById('gameScreen').classList.add('flex');
+
+            // 5. 啟動計時
+            startTimer();
+        }
+
+        function returnToHome() {
+            clearInterval(gameState.timerInterval);
+            gameState.isGameOver = true;
+            document.getElementById('successModal').classList.add('hidden');
+            document.getElementById('failModal').classList.add('hidden');
+            document.getElementById('gameScreen').classList.add('hidden');
+            document.getElementById('gameScreen').classList.remove('flex');
+            document.getElementById('startScreen').classList.remove('hidden');
+        }
+
+        // 綁定所有按鈕事件
+        document.getElementById('startGameBtn').addEventListener('click', () => {
+            sound.init();
+            startNewGame();
+        });
+
+        document.getElementById('playAgainBtn').addEventListener('click', () => {
+            startNewGame();
+        });
+
+        document.getElementById('retryBtn').addEventListener('click', () => {
+            startNewGame();
+        });
+
+        document.getElementById('backHomeBtn').addEventListener('click', () => {
+            returnToHome();
+        });
+
+        document.getElementById('inspectBoardBtn').addEventListener('click', () => {
+            revealAnswerOnBoard();
+        });
+
+        document.getElementById('hintBtn').addEventListener('click', () => {
+            showHint();
+        });
+
+        document.getElementById('clearSelectionBtn').addEventListener('click', () => {
+            clearSelection();
+        });
+
+        // 音效開關
+        const soundBtn = document.getElementById('soundToggleBtn');
+        const soundIcon = document.getElementById('soundIcon');
+        soundBtn.addEventListener('click', () => {
+            sound.enabled = !sound.enabled;
+            if (sound.enabled) {
+                soundIcon.className = 'fa-solid fa-volume-high text-hemo-red';
+            } else {
+                soundIcon.className = 'fa-solid fa-volume-xmark text-slate-400';
+            }
+        });
+
+        // 頁面載入就緒
+        window.addEventListener('load', () => {
+            setupInteraction();
+        });
+    </script>
+</body>
+</html>
