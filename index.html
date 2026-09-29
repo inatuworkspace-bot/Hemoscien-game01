@@ -144,7 +144,7 @@
                     <i class="fa-solid fa-magnifying-glass-location"></i>
                 </div>
                 <span class="absolute -bottom-2.5 -right-2 bg-slate-900 text-white text-[11px] font-extrabold px-2.5 py-1 rounded-full border-2 border-white shadow">
-                    60s LIMIT
+                    30s LIMIT
                 </span>
             </div>
 
@@ -213,7 +213,7 @@
                     <div class="flex items-center gap-1.5 text-xs font-extrabold">
                         <span class="text-slate-400">⏱️ 剩餘時間：</span>
                         <div class="flex items-center gap-1 text-slate-800">
-                            <span id="timerText" class="text-lg font-black text-slate-800 w-7 text-center">60</span>
+                            <span id="timerText" class="text-lg font-black text-slate-800 w-7 text-center">30</span>
                             <span class="text-[11px] font-bold">秒</span>
                         </div>
                     </div>
@@ -433,7 +433,7 @@
         };
 
         const GRID_SIZE = 10;
-        const GAME_DURATION = 60; // 60秒
+        const GAME_DURATION = 30; // 30秒
 
         let gameState = {
             targetWord: '',
@@ -767,8 +767,8 @@
                 gameState.timer--;
                 updateTimerDisplay();
 
-                // 最後 15 秒自動出現提示
-                if (gameState.timer <= 15 && !gameState.autoHintTriggered) {
+                // 最後 10 秒自動出現提示
+                if (gameState.timer <= 10 && !gameState.autoHintTriggered) {
                     gameState.autoHintTriggered = true;
                     showHint();
                 }
@@ -788,7 +788,7 @@
             const pct = (gameState.timer / GAME_DURATION) * 100;
             timerBar.style.width = `${pct}%`;
 
-            if (gameState.timer <= 15) {
+            if (gameState.timer <= 10) {
                 timerText.classList.add('text-hemo-red', 'animate-pulse');
                 timerBar.classList.remove('bg-hemo-red');
                 timerBar.classList.add('bg-red-600');
